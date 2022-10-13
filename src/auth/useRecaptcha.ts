@@ -43,7 +43,6 @@ export const useRecaptcha = (sitekey: string) => {
 
       window.grecaptcha.render(recaptchaId, {
         sitekey,
-        size: "invisible",
         callback: (response: string) => promiseRef.current?.resolve(response),
         // eslint-disable-next-line @typescript-eslint/naming-convention
         "error-callback": () => promiseRef.current?.reject(new Error()),
