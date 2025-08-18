@@ -19,7 +19,9 @@ import {
   Track,
 } from "livekit-client";
 import {
+  ClientEvent,
   RoomStateEvent,
+  SyncState,
   type Room as MatrixRoom,
   type RoomMember,
 } from "matrix-js-sdk";
@@ -54,6 +56,7 @@ import {
   type CallMembership,
   type MatrixRTCSession,
   MatrixRTCSessionEvent,
+  MembershipManagerEvent,
 } from "matrix-js-sdk/lib/matrixrtc";
 
 import { ViewModel } from "./ViewModel";
@@ -494,18 +497,40 @@ export class CallViewModel extends ViewModel {
     map(() => this.matrixRTCSession.memberships),
   );
 
-  private readonly matrixRTCConnected$ = this.scope.behavior(
-    this.memberships$.pipe(
-      map((ms) =>
-        ms.some(
-          (m) => m.sender === this.userId && m.deviceId === this.deviceId,
+  private readonly matrixConnected$ = this.scope.behavior(
+    combineLatest(
+      [
+        (
+          fromEvent(this.matrixRoom.client, ClientEvent.Sync) as Observable<
+            [SyncState]
+          >
+        ).pipe(
+          startWith([this.matrixRoom.client.getSyncState()]),
+          map(([state]) => state === SyncState.Syncing),
         ),
-      ),
+        this.memberships$.pipe(
+          map((ms) =>
+            ms.some(
+              (m) => m.sender === this.userId && m.deviceId === this.deviceId,
+            ),
+          ),
+        ),
+        (
+          fromEvent(
+            this.matrixRTCSession,
+            MembershipManagerEvent.ProbablyLeft,
+          ) as Observable<[SyncState]>
+        ).pipe(
+          startWith([false]),
+          map(([probablyLeft]) => !probablyLeft),
+        ),
+      ],
+      (...flags) => flags.every((connected) => connected),
     ),
   );
 
   public readonly reconnecting$ = this.scope.behavior(
-    this.matrixRTCConnected$.pipe(
+    this.matrixConnected$.pipe(
       // We are reconnecting if we previously had some successful initial
       // connection but are now disconnected
       scan(
@@ -1533,7 +1558,7 @@ export class CallViewModel extends ViewModel {
     // Pause all media tracks when we're disconnected from MatrixRTC, because it
     // can be an unpleasant surprise for the app to say 'reconnecting' and yet
     // still be transmitting your media to others.
-    this.matrixRTCConnected$.pipe(this.scope.bind()).subscribe((connected) => {
+    this.matrixConnected$.pipe(this.scope.bind()).subscribe((connected) => {
       const publications =
         this.livekitRoom.localParticipant.trackPublications.values();
       if (connected) {

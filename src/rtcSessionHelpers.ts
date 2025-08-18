@@ -138,6 +138,7 @@ export async function enterRTCSession(
         matrixRtcSessionConfig?.delayed_leave_event_restart_local_timeout_ms,
       networkErrorRetryMs: matrixRtcSessionConfig?.network_error_retry_ms,
       makeKeyDelay: matrixRtcSessionConfig?.wait_for_key_rotation_ms,
+      expectedServerDelayLeaveTs: 5000, // Just for testing
       membershipEventExpiryMs:
         matrixRtcSessionConfig?.membership_event_expiry_ms,
       useExperimentalToDeviceTransport,
